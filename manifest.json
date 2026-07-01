@@ -1,0 +1,10 @@
+{
+    "name": "Galaxy EA app plugin",
+    "platform": "origin",
+    "guid": "7f53219b-4e2b-4591-9f4f-dfc5f4ba9eb0",
+    "version": "2.1.2-64bit",
+    "description": "EA app (Origin) integration for GOG Galaxy 2.1+ (64-bit)",
+    "author": "melcom",
+    "url": "https://github.com/melcom-creations/galaxy-integration-ea",
+    "script": "plugin.py"
+}
