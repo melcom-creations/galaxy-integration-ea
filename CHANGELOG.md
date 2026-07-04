@@ -1,3 +1,13 @@
+# Changelog
+
+All notable changes to this plugin will be documented in this file.
+
+---
+
+## Version 2.0.4-64bit
+- Fixed module loader to locate the bundled modules directory regardless of folder name casing (modules, Modules, etc.).
+- Hardened startup dependency bootstrap with normalized absolute path handling and duplicate `sys.path` protection, improving reliability of `from galaxy.api...` imports in edge-case runtime setups.
+
 ## Version 2.0.3-64bit
 
 ### Fixed
