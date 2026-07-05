@@ -5,8 +5,21 @@ All notable changes to this plugin will be documented in this file.
 ---
 
 ## Version 2.0.4-64bit
+
+### Overview
+Maintenance release focused on startup dependency bootstrap reliability. The module loader now resolves bundled dependency paths more robustly across folder-name casing and path normalization edge cases.
+
+### Fixed
 - Fixed module loader to locate the bundled modules directory regardless of folder name casing (modules, Modules, etc.).
 - Hardened startup dependency bootstrap with normalized absolute path handling and duplicate `sys.path` protection, improving reliability of `from galaxy.api...` imports in edge-case runtime setups.
+
+### Technical Breakdown
+
+#### 1. Module folder casing tolerance
+The loader now resolves common casing variants of the dependency folder, preventing startup import failures caused by packaging differences.
+
+#### 2. Normalized path insertion
+Dependency paths are normalized and de-duplicated before insertion into `sys.path`, reducing import-order and duplicate-entry issues.
 
 ## Version 2.0.3-64bit
 
