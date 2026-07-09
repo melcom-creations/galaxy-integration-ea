@@ -4,6 +4,13 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.0.5-64bit
+
+### Fixed
+- **`plugin.py` – game time cache:** Fixed a crash in `handshake_complete()` where `GameTime` (a dataclass) was passed directly to `json.dumps()` when persisting the game-time cache, raising `TypeError: Object of type GameTime is not JSON serializable` on every startup. Cache entries are now converted with `dataclasses.asdict()` before serialization.
+
+---
+
 ## Version 2.0.4-64bit
 
 ### Overview

@@ -53,6 +53,23 @@ If the plugin behaves unexpectedly after an update, resetting the local plugin d
 2. Rename each by appending `.old` (e.g. `origin_xxxxxxxxx-storage.db` -> `origin_xxxxxxxxx-storage.db.old`).
 3. Start GOG Galaxy again and reconnect the EA app (Origin) integration if necessary.
 
+### 🚀 First Start and Initial Sync (Important)
+
+For a clean first run after installing or updating the plugin:
+
+1. Close GOG Galaxy.
+2. Open this folder:
+
+```text
+C:\ProgramData\GOG.com\Galaxy\storage\plugins\
+```
+
+3. If an `origin_...-storage.db` file exists there, delete it.
+4. Start GOG Galaxy.
+5. Start EA app and keep it open.
+6. In GOG Galaxy, open the account menu (top-right) and click **Sync integrations**.
+7. Wait until sync finishes.
+
 ---
 
 ## ⚠️ Important

@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import itertools
 import json
 import pathlib
@@ -894,7 +895,16 @@ class OriginPlugin(Plugin):
 
         for key, decoder in {"offers": None, "game_time": game_time_decoder}.items():
             decoded = safe_decode(self.persistent_cache.get(key), key, decoder)
-            self.persistent_cache[key] = json.dumps(decoded)
+            if key == "game_time" and isinstance(decoded, dict):
+                # GameTime is a dataclass and not JSON serializable on its own -
+                # convert entries to plain dicts before dumping.
+                serializable = {
+                    k: (dataclasses.asdict(v) if dataclasses.is_dataclass(v) else v)
+                    for k, v in decoded.items()
+                }
+                self.persistent_cache[key] = json.dumps(serializable)
+            else:
+                self.persistent_cache[key] = json.dumps(decoded)
 
         self._http_client.load_lats_from_cache(self.persistent_cache.get("lats"))
         self._http_client.set_save_lats_callback(self._save_lats)
