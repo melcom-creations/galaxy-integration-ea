@@ -36,8 +36,8 @@ class CustomCookieJar(CookieJar):
     def set_cookies_updated_callback(self, callback):
         self._cookies_updated_callback = callback
 
-    def update_cookies(self, cookies, url=URL()):
-        super().update_cookies(cookies, url)
+    def update_cookies(self, cookies, response_url=URL()):
+        super().update_cookies(cookies, response_url)
         if cookies and self._cookies_updated_callback:
             self._cookies_updated_callback(list(self))
 
@@ -222,6 +222,7 @@ class AuthenticatedHttpClient(HttpClient):
             if m:
                 label = f"{method} {url} [{m.group(1)}]"
 
+        cache_key = None
         if method.upper() == "GET":
             cache_key = f"{url}:{kwargs.get('params', '')}"
             if cache_key in self._request_cache:
@@ -238,7 +239,7 @@ class AuthenticatedHttpClient(HttpClient):
                 async with self._session.request(method, url, *args, **kwargs) as resp:
                     resp.raise_for_status()
                     result = await resp.json()
-                    if method.upper() == "GET":
+                    if cache_key is not None:
                         self._request_cache[cache_key]    = result
                         self._cache_timestamps[cache_key] = time.time()
                     return result

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -6,10 +8,19 @@ import ssl
 import struct
 import time
 from collections.abc import Callable
-from typing import Final
+from importlib import import_module
+from typing import Any, Final
 
 from google.protobuf.message import DecodeError
-from generated_protos import requests_pb2, responses_pb2, rtm_pb2
+requests_pb2: Any = None
+responses_pb2: Any = None
+rtm_pb2: Any = None
+try:
+    requests_pb2 = import_module("generated_protos.requests_pb2")
+    responses_pb2 = import_module("generated_protos.responses_pb2")
+    rtm_pb2 = import_module("generated_protos.rtm_pb2")
+except ModuleNotFoundError:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +64,8 @@ class RtmClient:
     # Public API
 
     def start(self) -> None:
+        if requests_pb2 is None or responses_pb2 is None or rtm_pb2 is None:
+            raise RuntimeError("EA RTM protobuf modules are not available")
         if self._task and not self._task.done():
             return
         self._running = True
@@ -197,7 +210,7 @@ class RtmClient:
 
     # Incoming message dispatch
 
-    async def _dispatch(self, comm: rtm_pb2.Communication) -> None:
+    async def _dispatch(self, comm: Any) -> None:
         v1 = comm.v1
         if not v1:
             return
@@ -216,7 +229,7 @@ class RtmClient:
         else:
             logger.debug("RTM unhandled body type: %s", body_type)
 
-    def _handle_presence(self, presence: responses_pb2.PresenceV1) -> None:
+    def _handle_presence(self, presence: Any) -> None:
         # Ignore presence updates from non-EA Desktop clients.
         if presence.HasField("clientVersion"):
             try:

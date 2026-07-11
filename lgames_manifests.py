@@ -3,15 +3,31 @@ import os
 import platform
 import winreg
 import xml.etree.ElementTree as ET
+from importlib import import_module
 from collections.abc import Iterator
 from enum import Flag
-from typing import Final
+from typing import Any, Final
 
+windll: Any = None
+byref: Any = None
+sizeof: Any = None
+create_unicode_buffer: Any = None
+FormatError: Any = None
+WinError: Any = None
+DWORD: Any = None
+psutil: Any = None
 if platform.system() == "Windows":
-    from ctypes import byref, sizeof, windll, create_unicode_buffer, FormatError, WinError
-    from ctypes.wintypes import DWORD
+    ctypes = import_module("ctypes")
+    wintypes = import_module("ctypes.wintypes")
+    windll = ctypes.windll
+    byref = ctypes.byref
+    sizeof = ctypes.sizeof
+    create_unicode_buffer = ctypes.create_unicode_buffer
+    FormatError = ctypes.FormatError
+    WinError = ctypes.WinError
+    DWORD = wintypes.DWORD
 else:
-    import psutil
+    psutil = import_module("psutil")
 
 logger = logging.getLogger(__name__)
 

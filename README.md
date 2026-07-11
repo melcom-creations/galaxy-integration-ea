@@ -28,7 +28,7 @@ The original community integration has been updated to work with the current 64-
 %localappdata%\GOG.com\Galaxy\plugins\installed\
 ```
 
-4. Extract the ZIP archive **directly into this folder**.
+1. Extract the ZIP archive **directly into this folder**.
 
 The resulting directory structure **must** look like this:
 
@@ -41,7 +41,7 @@ The resulting directory structure **must** look like this:
     └── ...
 ```
 
-5. Start GOG Galaxy.
+1. Start GOG Galaxy.
 
 ---
 
@@ -64,11 +64,11 @@ For a clean first run after installing or updating the plugin:
 C:\ProgramData\GOG.com\Galaxy\storage\plugins\
 ```
 
-3. If an `origin_...-storage.db` file exists there, delete it.
-4. Start GOG Galaxy.
-5. Start EA app and keep it open.
-6. In GOG Galaxy, open the account menu (top-right) and click **Sync integrations**.
-7. Wait until sync finishes.
+1. If an `origin_...-storage.db` file exists there, delete it.
+2. Start GOG Galaxy.
+3. Start EA app and keep it open.
+4. In GOG Galaxy, open the account menu (top-right) and click **Sync integrations**.
+5. Wait until sync finishes.
 
 ---
 
@@ -84,11 +84,11 @@ GOG Galaxy scans every folder inside this directory during startup. Duplicate pl
 
 **Original Community Integration**
 Friends of Galaxy
-https://github.com/FriendsOfGalaxy/galaxy-integration-origin
+[Friends of Galaxy Origin integration](https://github.com/FriendsOfGalaxy/galaxy-integration-origin)
 
 **EA Device Signing**
 Inspired by BellezaEmporium's galaxy-integration-ead
-https://github.com/BellezaEmporium/galaxy-integration-ead
+[BellezaEmporium EA device-signing integration](https://github.com/BellezaEmporium/galaxy-integration-ead)
 
 **64-bit Port, Maintenance and Improvements**
 melcom
@@ -103,6 +103,6 @@ This project is developed and maintained by one person. Response times may vary,
 
 If you would like to report a bug or suggest an improvement, please use the contact form on my website:
 
-📩 https://melcom-creations.github.io/melcom-music/contact.html
+📩 [Contact form](https://melcom-creations.github.io/melcom-music/contact.html)
 
 Thank you for your patience and support!

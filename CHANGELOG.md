@@ -4,6 +4,17 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.0.6-64bit
+
+### Fixed in Version 2.0.6-64bit
+
+- **`plugin.py` - friends import startup reliability:** `get_friends()` previously accepted the first backend snapshot as final, even when EA returned an empty or incomplete friend list during cold startup. The import now performs a short bounded retry window and falls back to the last known friend snapshot when a startup response is temporarily empty or fails.
+- **Local-game and manifest handling:** Incomplete manifests, process-list failures, unavailable registry data, and optional system-information helpers now fail only the affected local check instead of interrupting synchronization.
+- **Authentication and HTTP cache validation:** A missing refresh token or an uninitialized cache key now follows the existing authentication/error path safely.
+- **Platform-specific integrations:** Windows process helpers and macOS URI handling are loaded only on their respective platforms. The unused RTM client now reports its missing optional protobuf package only when it is explicitly started.
+
+---
+
 ## Version 2.0.5-64bit
 
 ### Fixed in Version 2.0.5-64bit

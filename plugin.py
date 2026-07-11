@@ -56,6 +56,7 @@ if os.path.isdir(_modules_dir):
 LOCAL_GAMES_CACHE_VALID_PERIOD = 15
 IS_WINDOWS = platform.system().lower() == "windows"
 OFFERS_FETCH_BATCH_SIZE = 16
+FRIENDS_IMPORT_RETRY_DELAYS = (0, 1.5, 3)
 
 from galaxy.api.consts import LicenseType, Platform
 from galaxy.api.errors import AuthenticationRequired, BackendError, UnknownBackendResponse, UnknownError
@@ -96,19 +97,6 @@ LOGIN_JS = {
 
 MultiplayerId = NewType("MultiplayerId", str)
 GameId = NewType("GameId", str)
-
-class _AsyncListIterator:
-    def __init__(self, items):
-        self._items = iter(items)
-
-    def __aiter__(self) -> AsyncIterator[SubscriptionGame]:
-        return self
-
-    async def __anext__(self) -> SubscriptionGame:
-        try:
-            return next(self._items)
-        except StopIteration:
-            raise StopAsyncIteration
 
 class AchievementsImportContext(NamedTuple):
     owned_games: dict[GameSlug, AchievementSet]
@@ -280,6 +268,7 @@ class OriginPlugin(Plugin):
         self._persistent_cache_updated = False
         self._last_offers_prefetch = 0
         self._prefetch_task: asyncio.Task | None = None
+        self._friends_cache: list[UserInfo] = []
 
     def _schedule_offers_prefetch(self):
         if self._prefetch_task is None or self._prefetch_task.done():
@@ -370,7 +359,10 @@ class OriginPlugin(Plugin):
 
     async def _force_refresh_access_token(self):
         try:
-            await self._http_client._refresh_access_token(self._http_client._refresh_token)
+            refresh_token = self._http_client._refresh_token
+            if not refresh_token:
+                raise AuthenticationRequired("Refresh token is unavailable")
+            await self._http_client._refresh_access_token(refresh_token)
         except Exception as e:
             logger.error("Token refresh failed: %s", e)
             self.lost_authentication()
@@ -418,7 +410,7 @@ class OriginPlugin(Plugin):
         return Authentication(user_id, user_name)
 
     @staticmethod
-    def _offer_id_from_game_id(game_id: GameId) -> OfferId:
+    def _offer_id_from_game_id(game_id: str) -> OfferId:
         return OfferId(game_id.split("@")[0])
 
     async def _get_offers(self, offer_ids: Iterable[OfferId]) -> dict[OfferId, Json]:
@@ -528,7 +520,7 @@ class OriginPlugin(Plugin):
         logger.info("get_owned_games returning %d games", len(games))
         return games
 
-    async def prepare_achievements_context(self, game_ids: list[GameId]) -> AchievementsImportContext:
+    async def prepare_achievements_context(self, game_ids: list[str]) -> AchievementsImportContext:
         self._check_authenticated()
 
         if self._auth_manager.persona_id is None:
@@ -587,7 +579,7 @@ class OriginPlugin(Plugin):
 
         return AchievementsImportContext(owned_games=slug_to_ach_set, achievements=achievements)
 
-    async def get_unlocked_achievements(self, game_id: GameId, context: AchievementsImportContext) -> list[Achievement]:
+    async def get_unlocked_achievements(self, game_id: str, context: AchievementsImportContext) -> list[Achievement]:
         try:
             offer_id = self._offer_id_from_game_id(game_id)
             if not (offer := self._offer_id_cache.get(offer_id)):
@@ -611,14 +603,18 @@ class OriginPlugin(Plugin):
 
     async def get_subscription_games(
         self, subscription_name: str, context: dict[str, str]
-    ):
+    ) -> AsyncIterator[list[SubscriptionGame]]:
         try:
             tier = context[subscription_name]
         except KeyError:
             raise UnknownError(f"Unknown subscription name {subscription_name}!")
 
         games = await self._backend_client.get_subscription_games_for_tier(tier)
-        return _AsyncListIterator(games)
+
+        async def result_page() -> AsyncIterator[list[SubscriptionGame]]:
+            yield games
+
+        return result_page()
 
     async def _get_game_times_for_master_title(
         self, game_id: GameId, game_slug: GameSlug, lastplayed_time: Timestamp | None
@@ -641,7 +637,7 @@ class OriginPlugin(Plugin):
         self._persistent_cache_updated = True
         return game_time
 
-    async def prepare_game_times_context(self, game_ids: list[GameId]) -> dict[GameSlug, Timestamp]:
+    async def prepare_game_times_context(self, game_ids: list[str]) -> dict[GameSlug, Timestamp]:
         offer_ids = [self._offer_id_from_game_id(gid) for gid in game_ids]
         try:
             await self._get_offers(offer_ids)
@@ -666,7 +662,7 @@ class OriginPlugin(Plugin):
 
         return normalized_last_played
 
-    async def get_game_time(self, game_id: GameId, last_played_games: dict[GameSlug, Timestamp]) -> GameTime:
+    async def get_game_time(self, game_id: str, context: dict[GameSlug, Timestamp]) -> GameTime:
         offer_id = self._offer_id_from_game_id(game_id)
         try:
             offer = self._offer_id_cache.get(offer_id)
@@ -684,7 +680,7 @@ class OriginPlugin(Plugin):
                 raise UnknownBackendResponse()
 
             return await self._get_game_times_for_master_title(
-                game_id, GameSlug(slug_val), last_played_games.get(GameSlug(slug_val))
+                GameId(game_id), GameSlug(slug_val), context.get(GameSlug(slug_val))
             )
         except KeyError as e:
             logger.exception("Failed to import game times %s", repr(e))
@@ -697,17 +693,57 @@ class OriginPlugin(Plugin):
 
     async def get_friends(self) -> list[UserInfo]:
         self._check_authenticated()
-        friends = await self._backend_client.get_friends()
-        return [
-            UserInfo(user_id=str(uid), user_name=str(uname), avatar_url=str(url))
-            for uid, (uname, url) in friends.items()
-        ]
+        last_error: Exception | None = None
+        cached_friends = list(self._friends_cache)
+
+        for attempt, delay in enumerate(FRIENDS_IMPORT_RETRY_DELAYS):
+            if delay:
+                await asyncio.sleep(delay)
+
+            try:
+                friends = await self._backend_client.get_friends()
+            except (BackendError, UnknownBackendResponse) as error:
+                last_error = error
+                if cached_friends:
+                    logger.warning("Friends import failed, returning cached EA friend snapshot: %s", repr(error))
+                    return cached_friends
+                if attempt < len(FRIENDS_IMPORT_RETRY_DELAYS) - 1:
+                    logger.info("EA friend snapshot unavailable during startup, retrying import")
+                    continue
+                raise
+
+            friend_list = [
+                UserInfo(user_id=str(uid), user_name=str(uname), avatar_url=str(url))
+                for uid, (uname, url) in friends.items()
+            ]
+
+            if friend_list:
+                if cached_friends and len(friend_list) + 5 < len(cached_friends):
+                    logger.warning(
+                        "EA friend snapshot shrank from %d to %d during startup, keeping cached list",
+                        len(cached_friends),
+                        len(friend_list),
+                    )
+                    return cached_friends
+                self._friends_cache = friend_list
+                return friend_list
+
+            if cached_friends:
+                logger.warning("EA friend snapshot was empty, returning cached friend list")
+                return cached_friends
+
+            if attempt < len(FRIENDS_IMPORT_RETRY_DELAYS) - 1:
+                logger.info("EA friend snapshot was empty, retrying import")
+
+        if last_error is not None:
+            raise last_error
+        return []
 
     def _open_uri(self, uri: str):
         logger.info("Opening %s", uri)
         webbrowser.open(uri)
 
-    async def launch_game(self, game_id: GameId):
+    async def launch_game(self, game_id: str):
         offer_id = self._offer_id_from_game_id(game_id)
         offer = self._offer_id_cache.get(offer_id)
         if offer is None:
@@ -722,7 +758,7 @@ class OriginPlugin(Plugin):
         )
         self._open_uri(uri)
 
-    async def install_game(self, game_id: GameId):
+    async def install_game(self, game_id: str):
         async def get_subscription_game_store_uri(offer_id: OfferId) -> str:
             try:
                 offers = await self._backend_client.get_offers([offer_id])
@@ -747,7 +783,7 @@ class OriginPlugin(Plugin):
         self._open_uri(uri)
 
     if IS_WINDOWS:
-        async def uninstall_game(self, game_id: GameId):
+        async def uninstall_game(self, game_id: str):
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, partial(subprocess.run, ["control", "appwiz.cpl"]))
 
@@ -816,7 +852,7 @@ class OriginPlugin(Plugin):
 
         asyncio.create_task(notify_local_games_changed())
 
-    async def prepare_local_size_context(self, game_ids: list[GameId]) -> dict[str, pathlib.PurePath]:
+    async def prepare_local_size_context(self, game_ids: list[str]) -> dict[str, pathlib.PurePath]:
         if not IS_WINDOWS:
             return {}
 
@@ -859,7 +895,7 @@ class OriginPlugin(Plugin):
 
         return game_id_manifest_map
 
-    async def get_local_size(self, game_id: GameId, context: dict[str, pathlib.PurePath]) -> int | None:
+    async def get_local_size(self, game_id: str, context: dict[str, pathlib.PurePath]) -> int | None:
         try:
             return parse_total_size(str(context[game_id]))
         except (FileNotFoundError, KeyError):
@@ -899,7 +935,7 @@ class OriginPlugin(Plugin):
                 # GameTime is a dataclass and not JSON serializable on its own -
                 # convert entries to plain dicts before dumping.
                 serializable = {
-                    k: (dataclasses.asdict(v) if dataclasses.is_dataclass(v) else v)
+                    k: (dataclasses.asdict(v) if dataclasses.is_dataclass(v) and not isinstance(v, type) else v)
                     for k, v in decoded.items()
                 }
                 self.persistent_cache[key] = json.dumps(serializable)

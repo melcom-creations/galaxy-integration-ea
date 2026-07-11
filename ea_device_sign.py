@@ -20,6 +20,7 @@ import struct
 import subprocess
 import threading
 import time
+from importlib import import_module
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -36,8 +37,10 @@ def fnv1a_hash(data: bytes) -> int:
     return value
 
 
+_cpuinfo_lib: Any = None
+
 try:
-    import cpuinfo as _cpuinfo_lib
+    _cpuinfo_lib = import_module("cpuinfo")
     _CPUINFO_AVAILABLE = True
 except ImportError:
     _CPUINFO_AVAILABLE = False

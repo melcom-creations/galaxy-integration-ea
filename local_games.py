@@ -5,14 +5,31 @@ import logging
 import os
 import platform
 import urllib.parse
+from importlib import import_module
+
+from typing import Any, Optional, Set, List
+
+windll: Any = None
+byref: Any = None
+sizeof: Any = None
+create_unicode_buffer: Any = None
+FormatError: Any = None
+WinError: Any = None
+DWORD: Any = None
+psutil: Any = None
 
 if platform.system() == "Windows":
-    from ctypes import byref, sizeof, windll, create_unicode_buffer, FormatError, WinError
-    from ctypes.wintypes import DWORD
-
-    from typing import Optional, Set, List
+    ctypes = import_module("ctypes")
+    wintypes = import_module("ctypes.wintypes")
+    windll = ctypes.windll
+    byref = ctypes.byref
+    sizeof = ctypes.sizeof
+    create_unicode_buffer = ctypes.create_unicode_buffer
+    FormatError = ctypes.FormatError
+    WinError = ctypes.WinError
+    DWORD = wintypes.DWORD
 else:
-    import psutil
+    psutil = import_module("psutil")
 
 from dataclasses import dataclass
 from enum import Enum, auto, Flag
@@ -83,7 +100,7 @@ def _parse_msft_file(filepath):
     try:
         game_id = parsed_data["id"]
     except KeyError as e:
-        raise FailedParsingManifest({"file": filepath, "exception": e, "parsed_data": parsed_data})
+        raise FailedParsingManifest(str({"file": filepath, "exception": repr(e), "parsed_data": parsed_data}))
     state = _State[parsed_data.get("currentstate", "<missing currentstate>")]
     prev_state = _State[parsed_data.get("previousstate", "<missing previousstate>")]
     ddinstallalreadycompleted = parsed_data.get("ddinstallalreadycompleted", "0")
@@ -144,7 +161,7 @@ if platform.system() == "Windows":
         _PROC_ID_T = DWORD
         list_size = 4096
 
-        def try_get_info_list(list_size) -> Tuple[int, List[int]]:
+        def try_get_info_list(list_size) -> List[int]:
             result_size = DWORD()
             proc_id_list = (_PROC_ID_T * list_size)()
 
@@ -157,14 +174,14 @@ if platform.system() == "Windows":
         while True:
             proc_id_list = try_get_info_list(list_size)
             if len(proc_id_list) < list_size:
-                return proc_id_list
+                return set(proc_id_list)
             # If the returned collection is not smaller than the requested size, some PIDs may have been missed.
             list_size *= 2
 
         return set(proc_id_list)
 
 
-    def process_iter() -> Iterator[Tuple[int, str]]:
+    def process_iter() -> Iterator[Tuple[int, Optional[str]]]:
         try:
             for pid in get_process_ids():
                 yield get_process_info(pid)
@@ -173,7 +190,7 @@ if platform.system() == "Windows":
             pass
 
 else:
-    def process_iter() -> Iterator[Tuple[int, str]]:
+    def process_iter() -> Iterator[Tuple[int, Optional[str]]]:
         for pid in psutil.pids():
             try:
                 yield pid, psutil.Process(pid=pid).as_dict(attrs=["exe"])["exe"]
