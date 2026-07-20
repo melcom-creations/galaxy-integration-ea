@@ -11,6 +11,9 @@ This plugin imports your EA app library into GOG Galaxy 2.1+ 64-bit. Based on th
 * Detects locally installed EA games
 * Launches games through the EA app
 
+> [!NOTE]
+> macOS compatibility may be technically possible, but it is currently untested because I do not have access to a Mac. If you use macOS and would like to help test the integration, feel free to contact me.
+
 ---
 
 ## 📦 Installation
