@@ -289,7 +289,12 @@ else:
 
 
 def update_local_games(self) -> list[LocalGame]:
+    # Wait for the first library snapshot to identify current offer IDs.
+    owned_game_ids = self.cache_manager.owned_game_ids
+    if owned_game_ids is None:
+        return []
     local_games: list[LocalGame] = []
+    installation_keys: dict[str, tuple[str, str]] = {}
     running_exes = {os.path.basename(exe).lower() for _, exe in process_iter() if exe}
 
     for offer_id, game_data in self._offer_id_cache.items():
@@ -319,10 +324,24 @@ def update_local_games(self) -> list[LocalGame]:
             state = LocalGameState.Installed
             if os.path.basename(install_path).lower() in running_exes:
                 state |= LocalGameState.Running
+            display_name = game_data["displayName"]
+            if isinstance(display_name, str) and display_name.strip():
+                installation_keys[offer_id] = (
+                    display_name.casefold().strip(),
+                    os.path.normcase(os.path.abspath(install_path)),
+                )
 
         local_games.append(LocalGame(offer_id, state))
 
-    return local_games
+    # Cached aliases can refer to the same installation as a current library entry.
+    owned_installations = {
+        key for game_id, key in installation_keys.items() if game_id in owned_game_ids
+    }
+    return [
+        game for game in local_games
+        if game.game_id in owned_game_ids
+        or installation_keys.get(game.game_id) not in owned_installations
+    ]
 
 
 def local_game_status(self) -> list[LocalGame]:

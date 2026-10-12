@@ -70,6 +70,10 @@ Restart Galaxy and the store app and try one synchronization. If the problem rem
 
 See [Support & Feedback](#-support--feedback) for contact options.
 
+### Duplicate EA Entries in the Leaderboard
+
+Previously stored duplicate EA entries may remain in Galaxy's leaderboard after updating. A normal sync does not always remove them. If this affects you, follow the backup and reset steps below for the EA integration. For Steam-linked games, the duplicate may also depend on Steam's stored data; contact the maintainer with fresh logs before resetting additional integration storage.
+
 ### 🔄 Reset Plugin Storage (Last Resort)
 
 Use this only if restarting and synchronizing do not help, or when requested for troubleshooting. Cached library data and local playtime may be lost; signing in again may be required. Keep the backup.

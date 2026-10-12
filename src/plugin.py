@@ -66,7 +66,10 @@ from galaxy.api.types import (
     NextStep, Subscription, SubscriptionGame
 )
 
-from backend import MasterTitleId, OfferId, EABackendClient, Timestamp, AchievementSet, Json, GameSlug
+from backend import (
+    MasterTitleId, OfferId, EABackendClient, Timestamp, AchievementSet, Json, GameSlug,
+    normalize_last_played_time,
+)
 from http_client import AuthenticatedHttpClient
 from ea_device_sign import prime_device_cache, build_device_token, decode_jwt_user
 from lgames_manifests import (
@@ -200,6 +203,7 @@ class CacheManager:
         self.plugin = plugin_instance
         self._game_time_cache: dict[OfferId, GameTime] = {}
         self._offer_id_cache: dict[OfferId, Json] = {}
+        self.owned_game_ids: set[str] | None = None
 
     @property
     def game_time_cache(self) -> dict[OfferId, GameTime]:
@@ -518,6 +522,7 @@ class OriginPlugin(Plugin):
                 }
 
         logger.info("get_owned_games returning %d games", len(games))
+        self._cache_manager.owned_game_ids = {game.game_id for game in games}
         return games
 
     async def prepare_achievements_context(self, game_ids: list[str]) -> AchievementsImportContext:
@@ -620,11 +625,11 @@ class OriginPlugin(Plugin):
         self, game_id: GameId, game_slug: GameSlug, lastplayed_time: Timestamp | None
     ) -> GameTime:
         def get_cached(_game_id: GameId, _lastplayed_time: Timestamp | None) -> GameTime | None:
-            if _lastplayed_time is None:
+            if normalize_last_played_time(_lastplayed_time) is None:
                 return None
             offer_id = self._offer_id_from_game_id(_game_id)
             cached = self._game_time_cache.get(offer_id)
-            if cached is None or cached.last_played_time is None:
+            if cached is None or normalize_last_played_time(cached.last_played_time) is None:
                 return None
             return cached if _lastplayed_time <= cached.last_played_time else None
 
@@ -632,7 +637,7 @@ class OriginPlugin(Plugin):
             return cached
 
         total_play_time, last_played_time = await self._backend_client.get_game_time(game_slug)
-        game_time = GameTime(game_id, total_play_time, last_played_time)
+        game_time = GameTime(game_id, total_play_time, normalize_last_played_time(last_played_time))
         self._game_time_cache[self._offer_id_from_game_id(game_id)] = game_time
         self._persistent_cache_updated = True
         return game_time
@@ -907,7 +912,10 @@ class OriginPlugin(Plugin):
                 if "@" in key:
                     del cache[key]
             return {
-                game_id: GameTime(entry["game_id"], entry["time_played"], entry.get("last_played_time"))
+                game_id: GameTime(
+                    entry["game_id"], entry["time_played"],
+                    normalize_last_played_time(entry.get("last_played_time")),
+                )
                 for game_id, entry in cache.items()
                 if entry and game_id
             }

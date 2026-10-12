@@ -4,6 +4,15 @@ All notable changes to this plugin will be documented in this file.
 
 ---
 
+## Version 2.0.7-64bit
+
+### Fixed in Version 2.0.7-64bit
+
+- Fixed playtime synchronization for games with missing or invalid last-played dates, including previously cached zero timestamps. Total playtime is preserved without reporting an invalid last-played date to GOG Galaxy.
+- Fixed duplicate installation and running-state reports when a cached EA offer and the current library entry refer to the same game installation, including during startup.
+
+---
+
 ## Version 2.0.6-64bit
 
 ### Fixed in Version 2.0.6-64bit

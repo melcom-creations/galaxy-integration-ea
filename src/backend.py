@@ -27,6 +27,22 @@ def _parse_ea_timestamp(ts: str) -> Timestamp:
     return Timestamp(int(dt.timestamp()))
 
 
+def normalize_last_played_time(timestamp: int | None) -> Timestamp | None:
+    if isinstance(timestamp, int) and not isinstance(timestamp, bool) and timestamp > 0:
+        return Timestamp(timestamp)
+    return None
+
+
+def _parse_ea_last_played_time(ts: str | None) -> Timestamp | None:
+    # EA can retain playtime for legacy titles without a usable session date.
+    if not ts:
+        return None
+    try:
+        return normalize_last_played_time(_parse_ea_timestamp(ts))
+    except (AttributeError, TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
 _IDENTITY_QUERY: Final = "query{me{player{pd psd displayName}}}"
 _IDENTITY_URL: Final = f"{_API_HOST}?query={quote(_IDENTITY_QUERY)}"
 
@@ -271,7 +287,7 @@ class EABackendClient:
                 return 0, None
 
             total_play_time = round(int(items[0]["totalPlayTimeSeconds"]) / 60)
-            last_played_time = _parse_ea_timestamp(items[0]["lastSessionEndDate"])
+            last_played_time = _parse_ea_last_played_time(items[0].get("lastSessionEndDate"))
             return total_play_time, last_played_time
 
         except (AttributeError, ValueError, KeyError) as e:
@@ -307,10 +323,14 @@ class EABackendClient:
             if not items:
                 logger.info("No recent games found in the response: %s", response)
                 return {}
-            return {
-                GameSlug(game["gameSlug"]): Timestamp(_parse_ea_timestamp(game["lastSessionEndDate"]))
-                for game in items if "gameSlug" in game and "lastSessionEndDate" in game
-            }
+            last_played = {}
+            for game in items:
+                if "gameSlug" not in game:
+                    continue
+                timestamp = _parse_ea_last_played_time(game.get("lastSessionEndDate"))
+                if timestamp is not None:
+                    last_played[GameSlug(game["gameSlug"])] = timestamp
+            return last_played
         except Exception:
             logger.exception("Can not parse backend response in get_lastplayed_games: %s", response)
             return {}
